@@ -1,18 +1,17 @@
 """Stream type classes for tap-tiktok."""
 import copy
-import json
 import datetime
+import json
+from collections.abc import Iterable
+from typing import Any
+from urllib.parse import parse_qs, urlparse
+
 import dateutil
 import requests
-from typing import Any, Dict, Iterable, Optional
-from urllib.parse import urlparse
-from urllib.parse import parse_qs
+from hotglue_singer_sdk import typing as th
+from hotglue_singer_sdk.helpers.jsonpath import extract_jsonpath
 
-from singer_sdk.helpers.jsonpath import extract_jsonpath
-from singer_sdk import typing as th  # JSON Schema typing helpers
-
-from tap_tiktok.client import TikTokStream
-from tap_tiktok.client import TikTokReportsStream
+from tap_tiktok_ads.client import TikTokReportsStream, TikTokStream
 
 
 class AdAccountsStream(TikTokStream):
@@ -54,16 +53,18 @@ class AdAccountsStream(TikTokStream):
     ).to_dict()
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
-        params: dict = {"advertiser_ids": "{advertiser_ids}".format(advertiser_ids=json.dumps([str(self.config["advertiser_id"])]))}
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
+        params: dict = {
+            "advertiser_ids": json.dumps([self.primary_advertiser_id()]),
+        }
         if next_page_token:
             params["page"] = next_page_token
         return params
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         return None
 
 
@@ -249,11 +250,13 @@ class AdsMetricsByDayStream(TikTokReportsStream):
     status_field = "ad_status"
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         if isinstance(next_page_token, dict) and next_page_token["start_date"] is not None:
-            start_date = datetime.datetime.strptime(next_page_token["start_date"], DATE_FORMAT)
+            start_date = datetime.datetime.strptime(
+                next_page_token["start_date"], DATE_FORMAT
+            ).replace(tzinfo=datetime.timezone.utc)
         else:
             start_date = self.get_starting_timestamp(context)
 
@@ -280,12 +283,11 @@ class AdsMetricsByDayStream(TikTokReportsStream):
         if start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=datetime.timezone.utc)
             
-        yesterday = datetime.datetime.now(tz=start_date.tzinfo) - datetime.timedelta(days=1)
         today = datetime.datetime.now(tz=start_date.tzinfo)
         end_date = min(start_date + datetime.timedelta(days=STEP_NUM_DAYS), today)
         params: dict = {
             "page_size": 10,
-            "advertiser_id": self.config.get("advertiser_id"),
+            "advertiser_id": self.primary_advertiser_id(),
             "service_type": "AUCTION",
             "report_type": "BASIC",
             "data_level": self.data_level,
@@ -312,19 +314,23 @@ class AdsMetricsByDayStream(TikTokReportsStream):
         return next(iter(page_matches), None)
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """Return a token for identifying next page or None if no more pages."""
         current_page = self._get_page_info("$.data.page_info.page", response.json()) or 0
         total_pages = self._get_page_info("$.data.page_info.total_page", response.json()) or 0
-        start_date = datetime.datetime.strptime(parse_qs(urlparse(response.request.url).query)['start_date'][0],DATE_FORMAT)
+        start_date = datetime.datetime.strptime(
+            parse_qs(urlparse(response.request.url).query)["start_date"][0], DATE_FORMAT
+        ).replace(tzinfo=datetime.timezone.utc)
         
         # Ensure start_date has timezone info
         if start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=datetime.timezone.utc)
             
         yesterday = datetime.datetime.now(tz=start_date.tzinfo) - datetime.timedelta(days=1)
-        end_date = datetime.datetime.strptime(parse_qs(urlparse(response.request.url).query)['end_date'][0], DATE_FORMAT)
+        end_date = datetime.datetime.strptime(
+            parse_qs(urlparse(response.request.url).query)["end_date"][0], DATE_FORMAT
+        ).replace(tzinfo=datetime.timezone.utc)
         
         # Ensure end_date has timezone info to match yesterday
         if end_date.tzinfo is None:
@@ -341,7 +347,7 @@ class AdsMetricsByDayStream(TikTokReportsStream):
             }
         return None
 
-    def request_records(self, context: Optional[dict]) -> Iterable[dict]:
+    def request_records(self, context: dict | None) -> Iterable[dict]:
         """Request records, advancing through date windows even when a window returns 0 records.
 
         The default Singer SDK RESTStream stops pagination when the last response has no
@@ -357,8 +363,7 @@ class AdsMetricsByDayStream(TikTokReportsStream):
                 context, next_page_token=next_page_token
             )
             resp = decorated_request(prepared_request, context)
-            for row in self.parse_response(resp):
-                yield row
+            yield from self.parse_response(resp)
             previous_token = copy.deepcopy(next_page_token)
             next_page_token = self.get_next_page_token(
                 response=resp, previous_token=previous_token
@@ -391,16 +396,16 @@ class AdsAttributeMetricsStream(AdsMetricsByDayStream):
     properties = [
         th.Property("ad_id", th.StringType),
     ]
-    properties += [th.Property(metric, th.StringType if metric in ["campaign_id", "adgroup_id"] else th.StringType) for metric in ATTRIBUTE_METRICS]
+    properties += [th.Property(metric, th.StringType) for metric in ATTRIBUTE_METRICS]
     schema = th.PropertiesList(*properties).to_dict()
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {
             "page_size": 10,
-            "advertiser_id": self.config.get("advertiser_id"),
+            "advertiser_id": self.primary_advertiser_id(),
             "service_type": "AUCTION",
             "report_type": "BASIC",
             "data_level": "AUCTION_AD",
@@ -412,8 +417,8 @@ class AdsAttributeMetricsStream(AdsMetricsByDayStream):
         return params
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """Return a token for identifying next page or None if no more pages."""
         current_page = self._get_page_info("$.data.page_info.page", response.json()) or 0
         total_pages = self._get_page_info("$.data.page_info.total_page", response.json()) or 0
@@ -432,16 +437,16 @@ class CampaignsAttributeMetricsStream(CampaignMetricsByDayStream):
     properties = [
         th.Property("campaign_id", th.IntegerType),
     ]
-    properties += [th.Property(metric, th.StringType if metric in ["campaign_id", "adgroup_id"] else th.StringType) for metric in ATTRIBUTE_METRICS]
+    properties += [th.Property(metric, th.StringType) for metric in ATTRIBUTE_METRICS]
     schema = th.PropertiesList(*properties).to_dict()
 
     def get_url_params(
-        self, context: Optional[dict], next_page_token: Optional[Any]
-    ) -> Dict[str, Any]:
+        self, context: dict | None, next_page_token: Any | None
+    ) -> dict[str, Any]:
         """Return a dictionary of values to be used in URL parameterization."""
         params: dict = {
             "page_size": 10,
-            "advertiser_id": self.config.get("advertiser_id"),
+            "advertiser_id": self.primary_advertiser_id(),
             "service_type": "AUCTION",
             "report_type": "BASIC",
             "data_level": "AUCTION_CAMPAIGN",
@@ -453,8 +458,8 @@ class CampaignsAttributeMetricsStream(CampaignMetricsByDayStream):
         return params
 
     def get_next_page_token(
-        self, response: requests.Response, previous_token: Optional[Any]
-    ) -> Optional[Any]:
+        self, response: requests.Response, previous_token: Any | None
+    ) -> Any | None:
         """Return a token for identifying next page or None if no more pages."""
         current_page = self._get_page_info("$.data.page_info.page", response.json()) or 0
         total_pages = self._get_page_info("$.data.page_info.total_page", response.json()) or 0
@@ -702,7 +707,7 @@ class AdsInAppEventMetricsByDayStream(AdsMetricsByDayStream):
     properties += [th.Property(metric, th.StringType) for metric in IN_APP_EVENT_METRICS]
     schema = th.PropertiesList(*properties).to_dict()
 
-    def request_records(self, context: Optional[dict]) -> Iterable[dict]:
+    def request_records(self, context: dict | None) -> Iterable[dict]:
         next_page_token: Any = None
         finished = False
         decorated_request = self.request_decorator(self._request)
@@ -750,7 +755,7 @@ class CampaignsInAppEventMetricsByDayStream(CampaignMetricsByDayStream):
     properties += [th.Property(metric, th.StringType) for metric in IN_APP_EVENT_METRICS]
     schema = th.PropertiesList(*properties).to_dict()
 
-    def request_records(self, context: Optional[dict]) -> Iterable[dict]:
+    def request_records(self, context: dict | None) -> Iterable[dict]:
         next_page_token: Any = None
         finished = False
         decorated_request = self.request_decorator(self._request)

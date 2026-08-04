@@ -138,3 +138,6 @@ dmypy.json
 # Singer assets
 catalog.json
 config.json
+
+__smoke-tests__/**/test_runtime/
+__smoke-tests__/unsanitized_*_test/

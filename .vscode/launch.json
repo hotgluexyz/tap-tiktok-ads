@@ -1,0 +1,43 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "tap-tiktok-ads discover",
+            "type": "python",
+            "request": "launch",
+            "program": "../tap_tiktok_ads/tap.py",
+            "cwd": "/Users/liorben-david/Desktop/Repos/taps/tap-tiktok-ads/.secrets",
+            "args": [
+                "--config",
+                "config.json",
+                "--discover",
+                ">",
+                "catalog.json"
+            ],
+            "justMyCode": false,
+            "python": "/Users/liorben-david/Desktop/Repos/taps/tap-tiktok-ads/.venv/bin/python",
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "tap-tiktok-ads get",
+            "type": "python",
+            "request": "launch",
+            "program": "../tap_tiktok_ads/tap.py",    
+            "cwd": "/Users/liorben-david/Desktop/Repos/taps/tap-tiktok-ads/.secrets",
+            "args": [
+                "--config",
+                "config.json",
+                "--catalog",
+                "catalog-selected.json",
+                ">",
+                "data.singer"
+            ],
+            "justMyCode": false,
+            "python": "/Users/liorben-david/Desktop/Repos/taps/tap-tiktok-ads/.venv/bin/python",
+            "console": "integratedTerminal"
+        }
+    ]
+}
