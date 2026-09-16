@@ -1,5 +1,0 @@
-[src]
-exclude = [
-    "__smoke-tests__/**",
-    "tap_tiktok_ads/streams.py",
-]
