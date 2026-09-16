@@ -3,6 +3,8 @@
 import datetime
 import json
 from unittest.mock import Mock
+
+import tap_tiktok_ads.gmv_max_streams as gmv_max_streams_module
 from tap_tiktok_ads.gmv_max_streams import (
     GmvMaxCampaignsStream,
     GmvMaxProductCampaignMetricsByDayStream,
@@ -55,7 +57,7 @@ def test_gmv_max_product_report_url_params():
     assert "cost" in json.loads(params["metrics"])
 
 
-def test_gmv_max_report_pagination_preserves_date_window():
+def test_gmv_max_report_pagination_preserves_date_window(monkeypatch):
     stream = GmvMaxProductCampaignMetricsByDayStream(tap=TapTikTokAds(config=SAMPLE_CONFIG))
     context = {"store_id": "shop-99", "is_gmv_max_available": True}
     first_params = stream.get_url_params(context, None)
@@ -72,8 +74,28 @@ def test_gmv_max_report_pagination_preserves_date_window():
     )
 
     page_token = stream.get_next_page_token(response, previous_token=None)
-    assert page_token == {"page": 2, "start_date": window_start}
+    assert page_token == {
+        "page": 2,
+        "start_date": window_start,
+        "end_date": window_end,
+    }
 
+    later_utc = datetime.datetime(2099, 1, 2, 12, 0, 0, tzinfo=datetime.timezone.utc)
+    real_datetime = datetime
+
+    class _Datetime:
+        @staticmethod
+        def now(tz=None):
+            return later_utc
+
+        strptime = staticmethod(real_datetime.datetime.strptime)
+
+    class _DatetimeModule:
+        datetime = _Datetime
+        timedelta = real_datetime.timedelta
+        timezone = real_datetime.timezone
+
+    monkeypatch.setattr(gmv_max_streams_module, "datetime", _DatetimeModule())
     second_params = stream.get_url_params(context, page_token)
     assert second_params["start_date"] == window_start
     assert second_params["end_date"] == window_end

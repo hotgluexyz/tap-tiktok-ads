@@ -222,8 +222,16 @@ class GmvMaxCampaignMetricsByDayStream(TikTokGmvMaxReportStream):
                 )
         if start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=datetime.timezone.utc)
-        today = datetime.datetime.now(tz=start_date.tzinfo)
-        end_date = min(start_date + datetime.timedelta(days=STEP_NUM_DAYS), today)
+        if (
+            isinstance(next_page_token, dict)
+            and next_page_token.get("end_date") is not None
+        ):
+            end_date = datetime.datetime.strptime(
+                next_page_token["end_date"], DATE_FORMAT
+            ).replace(tzinfo=datetime.timezone.utc)
+        else:
+            today = datetime.datetime.now(tz=start_date.tzinfo)
+            end_date = min(start_date + datetime.timedelta(days=STEP_NUM_DAYS), today)
         params: dict[str, Any] = {
             "page_size": 100,
             "advertiser_id": self.primary_advertiser_id(),
@@ -260,6 +268,7 @@ class GmvMaxCampaignMetricsByDayStream(TikTokGmvMaxReportStream):
             return {
                 "page": current_page + 1,
                 "start_date": start_date.strftime(DATE_FORMAT),
+                "end_date": end_date.strftime(DATE_FORMAT),
             }
         if end_date.date() < yesterday.date():
             return {
