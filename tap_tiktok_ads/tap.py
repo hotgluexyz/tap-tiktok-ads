@@ -13,6 +13,12 @@ from hotglue_singer_sdk.exceptions import FatalAPIError
 from hotglue_singer_sdk.helpers.capabilities import AlertingLevel
 
 from tap_tiktok_ads.auth import TikTokAuthenticator
+from tap_tiktok_ads.gmv_max_streams import (
+    GmvMaxCampaignsStream,
+    GmvMaxLiveCampaignMetricsByDayStream,
+    GmvMaxProductCampaignMetricsByDayStream,
+    GmvMaxStoresStream,
+)
 from tap_tiktok_ads.streams import (
     AdAccountsStream,
     AdGroupsStream,
@@ -34,6 +40,13 @@ from tap_tiktok_ads.streams import (
     CampaignsVideoPlayMetricsByDayStream,
 )
 
+GMV_MAX_STREAM_TYPES = [
+    GmvMaxStoresStream,
+    GmvMaxCampaignsStream,
+    GmvMaxProductCampaignMetricsByDayStream,
+    GmvMaxLiveCampaignMetricsByDayStream,
+]
+
 STREAM_TYPES = [
     AdAccountsStream,
     CampaignsStream,
@@ -53,7 +66,7 @@ STREAM_TYPES = [
     CampaignsAttributionMetricsByDayStream,
     CampaignsPageEventMetricsByDayStream,
     CampaignsInAppEventMetricsByDayStream,
-]
+] + GMV_MAX_STREAM_TYPES
 
 
 class TapTikTokAds(Tap):

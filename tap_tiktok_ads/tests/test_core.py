@@ -19,7 +19,7 @@ def test_tap_metadata():
 def test_discover_streams():
     tap = TapTikTokAds(config=SAMPLE_CONFIG)
     streams = tap.discover_streams()
-    assert len(streams) == 18
+    assert len(streams) == 22
     assert {stream.name for stream in streams} == {
         "ad_accounts",
         "campaigns",
@@ -39,4 +39,8 @@ def test_discover_streams():
         "campaigns_attribution_metrics_by_day",
         "campaigns_page_event_metrics_by_day",
         "campaigns_in_app_event_metrics_by_day",
+        "gmv_max_stores",
+        "gmv_max_campaigns",
+        "gmv_max_product_campaign_metrics_by_day",
+        "gmv_max_live_campaign_metrics_by_day",
     }

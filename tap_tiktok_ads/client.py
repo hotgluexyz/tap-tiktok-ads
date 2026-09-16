@@ -81,11 +81,16 @@ class TikTokReportsStream(TikTokStream):
     def post_process(self, row: dict, context: dict | None = None) -> dict | None:
         return {**row["dimensions"], **row["metrics"]}
 
-    def get_next_page_token(
-        self, response: requests.Response, previous_token: Any | None
-    ) -> Any | None:
-        page_match = self._get_page_info("$.data.page_info.page", response.json()) or 0
-        total_pages_match = self._get_page_info("$.data.page_info.total_page", response.json()) or 0
-        if page_match < total_pages_match:
-            return page_match + 1
-        return None
+
+class TikTokGmvMaxReportStream(TikTokStream):
+    """GMV Max campaign reports (`gmv_max/report/get/`)."""
+
+    url_base = f"{TIKTOK_API_BASE}/gmv_max/report/get/"
+    records_jsonpath = "$.data.list[*]"
+
+    def post_process(self, row: dict, context: dict | None = None) -> dict | None:
+        record = {**row["dimensions"], **row["metrics"]}
+        record["advertiser_id"] = self.primary_advertiser_id()
+        if context and context.get("store_id") is not None:
+            record["store_id"] = str(context["store_id"])
+        return record
