@@ -256,13 +256,11 @@ class GmvMaxCampaignMetricsByDayStream(TikTokGmvMaxReportStream):
         ).replace(tzinfo=datetime.timezone.utc)
         if end_date.tzinfo is None:
             end_date = end_date.replace(tzinfo=datetime.timezone.utc)
-        prev_start = (
-            previous_token.get("start_date")
-            if isinstance(previous_token, dict)
-            else None
-        )
         if current_page < total_pages:
-            return {"page": current_page + 1, "start_date": prev_start}
+            return {
+                "page": current_page + 1,
+                "start_date": start_date.strftime(DATE_FORMAT),
+            }
         if end_date.date() < yesterday.date():
             return {
                 "page": 1,
