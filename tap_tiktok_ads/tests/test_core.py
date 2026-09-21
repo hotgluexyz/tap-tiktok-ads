@@ -2,6 +2,8 @@
 
 import datetime
 
+import pytest
+
 from tap_tiktok_ads.tap import TapTikTokAds
 
 SAMPLE_CONFIG = {
@@ -14,6 +16,33 @@ SAMPLE_CONFIG = {
 def test_tap_metadata():
     tap = TapTikTokAds(config=SAMPLE_CONFIG)
     assert tap.name == "tap-tiktok-ads"
+
+
+def test_advertiser_id_list_prefers_advertiser_id():
+    tap = TapTikTokAds(
+        config={
+            **SAMPLE_CONFIG,
+            "advertiser_id": "9999999999",
+            "advertiser_ids": ["1234567890"],
+        }
+    )
+    assert tap.advertiser_id_list == ["9999999999"]
+
+
+def test_advertiser_id_list_falls_back_to_advertiser_ids():
+    tap = TapTikTokAds(config=SAMPLE_CONFIG)
+    assert tap.advertiser_id_list == ["1234567890"]
+
+
+def test_advertiser_id_list_requires_advertiser_config():
+    tap = TapTikTokAds(
+        config={
+            "access_token": SAMPLE_CONFIG["access_token"],
+            "start_date": SAMPLE_CONFIG["start_date"],
+        }
+    )
+    with pytest.raises(ValueError, match="advertiser_id"):
+        tap.advertiser_id_list
 
 
 def test_discover_streams():

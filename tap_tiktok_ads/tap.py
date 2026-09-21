@@ -103,6 +103,13 @@ class TapTikTokAds(Tap):
             description="Access token for the TikTok Marketing API",
         ),
         th.Property(
+            "advertiser_id",
+            th.StringType,
+            description=(
+                "Single advertiser ID to sync. Takes priority over advertiser_ids when set."
+            ),
+        ),
+        th.Property(
             "advertiser_ids",
             th.ArrayType(th.StringType),
             description="Advertiser IDs to sync",
@@ -128,7 +135,16 @@ class TapTikTokAds(Tap):
 
     @property
     def advertiser_id_list(self) -> list[str]:
-        return cast(dict[str, Any], self.config)["advertiser_ids"]
+        config = cast(dict[str, Any], self.config)
+        advertiser_id = config.get("advertiser_id")
+        if advertiser_id:
+            return [advertiser_id]
+        advertiser_ids = config.get("advertiser_ids")
+        if advertiser_ids:
+            return advertiser_ids
+        raise ValueError(
+            "Config must include either 'advertiser_id' or 'advertiser_ids'.",
+        )
 
     def discover_streams(self) -> list[Stream]:
         return [stream_class(tap=self) for stream_class in STREAM_TYPES]
